@@ -3,11 +3,19 @@ $(async function() {
   const $allStoriesList = $("#all-articles-list");
   const $submitForm = $("#submit-form");
   const $filteredArticles = $("#filtered-articles");
+  const $favoritedArticles = $("#favorited-articles")
   const $loginForm = $("#login-form");
   const $createAccountForm = $("#create-account-form");
   const $ownStories = $("#my-articles");
   const $navLogin = $("#nav-login");
   const $navLogOut = $("#nav-logout");
+  const $navNewStory = $("#nav-new-story");
+  const $navFavorites = $("#nav-favorites");
+  const $navMyStories = $("#nav-my-stories");
+  const $body = $("body");
+  $navNewStory.hide();
+  $navFavorites.hide()
+  $navMyStories.hide();
 
   // global storyList variable
   let storyList = null;
@@ -26,13 +34,11 @@ $(async function() {
     evt.preventDefault(); // no page-refresh on submit
 
     // grab the username and password
-    const username = $("#login-username").val();
-    const password = $("#login-password").val();
+    const username = $loginForm.find("#login-username").val();
+    const password = $loginForm.find("#login-password").val();
 
     // call the login static method to build a user instance
-    const userInstance = await User.login(username, password);
-    // set the global user to the user instance
-    currentUser = userInstance;
+    currentUser = await User.login(username, password);
     syncCurrentUserToLocalStorage();
     loginAndSubmitForm();
   });
@@ -46,13 +52,12 @@ $(async function() {
     evt.preventDefault(); // no page refresh
 
     // grab the required fields
-    let name = $("#create-account-name").val();
-    let username = $("#create-account-username").val();
-    let password = $("#create-account-password").val();
+    const name = $createAccountForm.find("#create-account-name").val();
+    const username = $createAccountForm.find("#create-account-username").val();
+    const password = $createAccountForm.find("#create-account-password").val();
 
     // call the create method, which calls the API and then builds a new user instance
-    const newUser = await User.create(username, password, name);
-    currentUser = newUser;
+    currentUser = await User.create(username, password, name);
     syncCurrentUserToLocalStorage();
     loginAndSubmitForm();
   });
@@ -83,10 +88,114 @@ $(async function() {
    * Event handler for Navigation to Homepage
    */
 
-  $("body").on("click", "#nav-all", async function() {
+  $body.on("click", "#nav-all", async function() {
     hideElements();
     await generateStories();
-    $allStoriesList.show();
+    $allStoriesList.slideToggle();
+  });
+
+  /**
+   * My Stories List Functionality
+   */
+
+  getMyStoriesList = async (user) => {
+    $ownStories.empty();
+    user.ownStories.forEach((story) => {
+      const result = generateStoryHTML(story);
+      $ownStories.append(result);
+    })
+  }
+
+  /**
+   * My Favorite Stories List Functionality
+   */
+
+  getMyFavoriteStoriesList = async (user) => {
+    $favoritedArticles.empty();
+    user.favorites.forEach((story) => {
+      const result = generateStoryHTML(story);
+      $favoritedArticles.append(result);
+    })
+  }
+
+  /**
+   * Add Favorite Story Functionality
+   */
+
+  addFavoriteStory = async (storyId) => {
+    const response = await User.addFavorite(currentUser, storyId);
+    currentUser.favorites = response.data.user.favorites.reverse();
+  }
+
+  /**
+   * Remove Favorite Story Functionality
+   */
+
+  removeFavoriteStory = async (storyId) => {
+    const response = await User.removeFavorite(currentUser, storyId);
+    currentUser.favorites = response.data.user.favorites.reverse();
+  }
+
+  /**
+   * Remove Story Functionality
+   */
+
+  removeStory = async (storyId) => {
+    await User.removeStory(currentUser, storyId);
+    await updateUser();
+    await generateStories();
+    await getMyFavoriteStoriesList(currentUser);
+    await getMyStoriesList(currentUser);
+  }
+
+  /**
+   * Event handler for Navigation to My Stories
+   */
+
+  $body.on("click", "#nav-my-stories", async function() {
+    hideElements();
+    await getMyStoriesList(currentUser);
+    $ownStories.slideToggle();
+  });
+
+  /**
+   * Event handler for Navigation to Favorites
+   */
+
+  $body.on("click", "#nav-favorites", async function() {
+    hideElements();
+    await getMyFavoriteStoriesList(currentUser);
+    $favoritedArticles.slideToggle();
+  });
+
+  /**
+   * Event handler for Navigation to New Story
+   */
+
+  $body.on("click", "#nav-new-story", async function() {
+    hideElements();
+    $submitForm.slideToggle();
+  });
+
+  /**
+   * Handle submit form to create new Story and refresh the stories list
+   */
+
+  $submitForm.submit( async (e) => {
+      e.preventDefault();
+      let storyData = {};
+      const formArray = $submitForm.serializeArray()
+      formArray.forEach((dict) => {
+        storyData[dict.name] = dict.value
+      })
+
+      const response = await StoryList.addStory(currentUser, storyData);
+
+      await updateUser();
+      generateStoryHTML(response);
+      $submitForm.toggle();
+      await generateStories();
+      $allStoriesList.slideToggle();
   });
 
   /**
@@ -95,14 +204,11 @@ $(async function() {
    */
 
   async function checkIfLoggedIn() {
-    // let's see if we're logged in
-    const token = localStorage.getItem("token");
-    const username = localStorage.getItem("username");
-
     // if there is a token in localStorage, call User.getLoggedInUser
     //  to get an instance of User with the right details
     //  this is designed to run once, on page load
-    currentUser = await User.getLoggedInUser(token, username);
+    await updateUser();
+
     await generateStories();
 
     if (currentUser) {
@@ -110,6 +216,17 @@ $(async function() {
     }
   }
 
+  /**
+   * Function to update currentUser
+   */
+  async function updateUser() {
+    // let's see if we're logged in
+    const token = localStorage.getItem("token");
+    const username = localStorage.getItem("username");
+    if(token && username) {
+      currentUser = await User.getLoggedInUser(token, username);
+    }
+  }
   /**
    * A rendering function to run to reset the forms and hide the login info
    */
@@ -137,9 +254,7 @@ $(async function() {
 
   async function generateStories() {
     // get an instance of StoryList
-    const storyListInstance = await StoryList.getStories();
-    // update our global variable
-    storyList = storyListInstance;
+    storyList = await StoryList.getStories();
     // empty out that part of the page
     $allStoriesList.empty();
 
@@ -150,16 +265,66 @@ $(async function() {
     }
   }
 
+  $body.on('click', ".favorite", function(e) {
+    const $targetElement = $(e.target);
+    const storyId = e.target.parentElement.id;
+
+    if ($targetElement.hasClass('far')) {
+      addFavoriteStory(storyId);
+      $targetElement.removeClass('far').addClass('fas');
+    } else {
+      removeFavoriteStory(storyId);
+      $targetElement.removeClass('fas').addClass('far');
+    }
+    $favoritedArticles.empty();
+  })
+
+  $body.on('click', ".trash-can", async function(e) {
+    const storyId = e.target.parentElement.id;
+    await removeStory(storyId);
+  })
+
+  /**
+   * A function to return trash can symbol or not
+   */
+
+  function buildTrashCanIcon(myStoriesIds, story) {
+      if (myStoriesIds.includes(story.storyId)) {
+        return `<i class="fa fa-trash trash-can"></i>`;
+      } else {
+        return '';
+      }
+  }
+
+  /**
+   * A function to return the favorite icon type
+   */
+
+  function buildFavoriteIcon(favoritesIds, story) {
+    if(favoritesIds.includes(story.storyId)) {
+      return `<i class="fa-star fas favorite"></i>`;
+    } else {
+      return `<i class="fa-star far favorite"></i>`;
+    }
+  }
+
   /**
    * A function to render HTML for an individual Story instance
    */
 
   function generateStoryHTML(story) {
     let hostName = getHostName(story.url);
-
-    // render story markup
-    const storyMarkup = $(`
+    // render story markup according to story in favorites or not
+    const favoritesIds = currentUser.favorites.map((favorite) => {
+      return favorite.storyId;
+    })
+    const myStoriesIds = currentUser.ownStories.map((myStories) => {
+      return myStories.storyId;
+    })
+    return $(`
       <li id="${story.storyId}">
+      ${buildFavoriteIcon(favoritesIds, story)}
+      ${buildTrashCanIcon(myStoriesIds, story)}
         <a class="article-link" href="${story.url}" target="a_blank">
           <strong>${story.title}</strong>
         </a>
@@ -168,8 +333,6 @@ $(async function() {
         <small class="article-username">posted by ${story.username}</small>
       </li>
     `);
-
-    return storyMarkup;
   }
 
   /* hide all elements in elementsArr */
@@ -180,15 +343,22 @@ $(async function() {
       $allStoriesList,
       $filteredArticles,
       $ownStories,
+      $favoritedArticles,
       $loginForm,
-      $createAccountForm
+      $createAccountForm,
     ];
     elementsArr.forEach($elem => $elem.hide());
   }
 
   function showNavForLoggedInUser() {
     $navLogin.hide();
-    $navLogOut.show();
+    const elementsArr = [
+      $navLogOut,
+      $navNewStory,
+      $navFavorites,
+      $navMyStories,
+    ];
+    elementsArr.forEach($elem => $elem.show())
   }
 
   /* simple function to pull the hostname from a URL */

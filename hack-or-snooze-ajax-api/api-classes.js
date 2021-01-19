@@ -43,10 +43,18 @@ class StoryList {
    * Returns the new story object
    */
 
-  async addStory(user, newStory) {
-    // TODO - Implement this functions!
-    // this function should return the newly created story so it can be used in
-    // the script.js file where it will be appended to the DOM
+  static async addStory(user, newStory) {
+    const data = {
+      "token": user.loginToken,
+      "story": {
+        "author": newStory.author,
+        "title": newStory.title,
+        "url": newStory.url,
+      }
+    }
+    const response = await axios.post(`${BASE_URL}/stories`, data);
+
+    return response.data.story;
   }
 }
 
@@ -96,6 +104,36 @@ class User {
     return newUser;
   }
 
+  /* Add a favorite story.
+   */
+
+  static async addFavorite(user, storyId) {
+    return await axios.post(
+        `${BASE_URL}/users/${user.username}/favorites/${storyId}`,
+        {token: user.loginToken}
+    );
+  }
+
+  /* Remove a favorite story.
+   */
+
+  static async removeFavorite(user, storyId) {
+    return axios.delete(
+        `${BASE_URL}/users/${user.username}/favorites/${storyId}`,
+        {data: {token: user.loginToken}},
+    );
+  }
+
+  /* Remove a story.
+   */
+
+  static async removeStory(user, storyId) {
+    return axios.delete(
+        `${BASE_URL}/stories/${storyId}`,
+        {data: {token: user.loginToken}},
+    );
+  }
+
   /* Login in user and return user instance.
 
    * - username: an existing user's username
@@ -114,8 +152,8 @@ class User {
     const existingUser = new User(response.data.user);
 
     // instantiate Story instances for the user's favorites and ownStories
-    existingUser.favorites = response.data.user.favorites.map(s => new Story(s));
-    existingUser.ownStories = response.data.user.stories.map(s => new Story(s));
+    existingUser.favorites = response.data.user.favorites.map(s => new Story(s)).reverse();
+    existingUser.ownStories = response.data.user.stories.map(s => new Story(s)).reverse();
 
     // attach the token to the newUser instance for convenience
     existingUser.loginToken = response.data.token;
@@ -147,8 +185,8 @@ class User {
     existingUser.loginToken = token;
 
     // instantiate Story instances for the user's favorites and ownStories
-    existingUser.favorites = response.data.user.favorites.map(s => new Story(s));
-    existingUser.ownStories = response.data.user.stories.map(s => new Story(s));
+    existingUser.favorites = response.data.user.favorites.map(s => new Story(s)).reverse();
+    existingUser.ownStories = response.data.user.stories.map(s => new Story(s)).reverse();
     return existingUser;
   }
 }

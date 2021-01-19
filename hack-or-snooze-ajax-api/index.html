@@ -14,6 +14,9 @@
 <body>
   <nav>
     <b><a class="nav-link navbar-brand" href="#" id="nav-all">Hack or Snooze</a></b>
+    <a class="nav-link nav-right" href="#" id="nav-new-story">New story</a>
+    <a class="nav-link nav-right" href="#" id="nav-favorites">Favorites</a>
+    <a class="nav-link nav-right" href="#" id="nav-my-stories">My stories</a>
     <a class="nav-link nav-right" href="#" id="nav-login">login/create user</a>
     <span class="nav-link nav-right hidden" id="nav-welcome">
       <a href="#" id="nav-user-profile"></a>
@@ -26,15 +29,15 @@
     <form action="" class="hidden" id="submit-form">
       <div>
         <label for="author">author</label>
-        <input id="author" required type="text" placeholder="author name">
+        <input id="author" required type="text" name="author" placeholder="author name">
       </div>
       <div>
         <label for="title">title</label>
-        <input id="title" required type="text" placeholder="article title">
+        <input id="title" required type="text" name="title" placeholder="article title">
       </div>
       <div>
         <label for="url">url</label>
-        <input id="url" required type="url" placeholder="article url">
+        <input id="url" required type="url" name="url" placeholder="article url">
       </div>
       <button type="submit">submit</button>
       <hr>
